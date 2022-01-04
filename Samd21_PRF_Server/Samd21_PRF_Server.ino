@@ -23,7 +23,7 @@ long timeSinceLastPacket = 0; //Tracks the time stamp of last packet received
 // Europe operates in the frequencies 863-870, center frequency at 
 // 868MHz.This works but it is unknown how well the radio configures to this frequency:
 //float frequency = 864.1;
-float frequency = 921.2;
+float frequency = 915.0;
 
 void setup()
 {
@@ -32,7 +32,7 @@ void setup()
   SerialUSB.begin(9600);
   // It may be difficult to read serial messages on startup. The following
   // line will wait for serial to be ready before continuing. Comment out if not needed.
-  while(!SerialUSB);
+//  while(!SerialUSB);
   SerialUSB.println("RFM Server!");
 
   //Initialize the Radio. 
@@ -55,7 +55,7 @@ void setup()
    // If you are using RFM95/96/97/98 modules which uses the PA_BOOST transmitter pin, then 
    // you can set transmitter powers from 5 to 23 dBm:
    // Transmitter power can range from 14-20dbm.
-   rf95.setTxPower(14, false);
+   rf95.setTxPower(23, false);
 }
 
 void loop()
@@ -69,27 +69,54 @@ void loop()
       digitalWrite(LED, HIGH); //Turn on status LED
       timeSinceLastPacket = millis(); //Timestamp this packet
 
-      SerialUSB.print("Got message: ");
-      SerialUSB.print((char*)buf);
-      //SerialUSB.print(" RSSI: ");
-      //SerialUSB.print(rf95.lastRssi(), DEC);
+      SerialUSB.println("[Received client message]");
+      SerialUSB.print("Received: ");
+      //SerialUSB.println(buf, HEX);
+      for (int x = 0; x < sizeof(long); x++)
+      {
+        SerialUSB.print(buf[x], HEX);
+      }
       SerialUSB.println();
 
-      // Send a reply
-      uint8_t toSend[] = "Hello Back!"; 
-      rf95.send(toSend, sizeof(toSend));
-      rf95.waitPacketSent();
-      SerialUSB.println("Sent a reply");
-      digitalWrite(LED, LOW); //Turn off status LED
+//      delay(500); // Pause for repeater
 
+      // Send a reply
+      unsigned long timeStamp = millis();
+      uint8_t toSend[] = {  (timeStamp >> 24), (timeStamp >> 16) & 0xff, (timeStamp >> 8) & 0xff, (timeStamp) & 0xff  }; //"Hello Back!";
+      rf95.send(toSend, sizeof(toSend));
+      rf95.waitPacketSent(); // **** Blocks if LoraWAN jumpers set if no time out passed!
+      SerialUSB.print("Sent: ");
+      SerialUSB.println(timeStamp, HEX);
+
+       digitalWrite(LED, LOW); //Turn off status LED
+      
+      SerialUSB.print("RxGood: ");
+      SerialUSB.print(rf95.rxGood());
+      SerialUSB.print(" RxBad: ");
+      SerialUSB.println(rf95.rxBad());
+
+      SerialUSB.print("RSSI: ");
+      SerialUSB.print(-137 + rf95.lastRssi(), DEC);
+      SerialUSB.println(" dBm");
+
+      SerialUSB.print("HeaderFrom: ");
+      SerialUSB.println(rf95.headerFrom());
+      SerialUSB.print("HeaderTo: ");
+      SerialUSB.println(rf95.headerTo());
+      SerialUSB.print("HeaderID: ");
+      SerialUSB.println(rf95.headerId());
+
+      packetCounter++;
+
+      SerialUSB.println();
     }
     else
       SerialUSB.println("Recieve failed");
   }
+  
   //Turn off status LED if we haven't received a packet after 1s
   if(millis() - timeSinceLastPacket > 1000){
     digitalWrite(LED, LOW); //Turn off status LED
-    timeSinceLastPacket = millis(); //Don't write LED but every 1s
-  }
+    timeSinceLastPacket = millis(); //Don't write LED but every 1s    
+  }     
 }
-
